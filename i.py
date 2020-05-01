@@ -1,7 +1,8 @@
-import datetime
+from datetime import date, datetime, timedelta
 
 from flask import Flask, abort, request, jsonify, url_for, g
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import func
 from flask_login import UserMixin
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -29,7 +30,7 @@ class User(UserMixin, db.Model):
     	return check_password_hash(self.password_hash, password)
 
 def get_date():
-	return datetime.datetime.now()
+	return datetime.now()
 
 class Mood(db.Model):
 	__tablename__ = 'moods'
@@ -58,10 +59,18 @@ def mood():
 		else:
 			return (jsonify({'r': r, 'uid': g.user.username}), 201)
 	elif request.method == 'POST':
-		mood = Mood(mood=request.json.get('mood'), streak=1)
+		yesterday = date.today() - timedelta(days = 1)
+		r = Mood.query.filter_by(uid=g.user.id).filter(Mood.created == yesterday).first()
+		if not r:
+			mood = Mood(mood=request.json.get('mood'), uid=g.user.id, streak=1)
+		else:
+			s = r.streak + 1
+			mood = Mood(mood=request.json.get('mood'), uid=g.user.id, streak=s)
+
 		db.session.add(mood)
 		db.session.commit()
-		return (jsonify({'success': True, 'mood': request.json.get('mood')}))
+		
+		return ({'success': True, 'streak': mood.streak})
 	
 
 @app.route('/api/users', methods=['POST'])
