@@ -1,3 +1,4 @@
+import json
 from datetime import date, datetime, timedelta
 
 from flask import Flask, abort, request, jsonify, url_for, g
@@ -51,13 +52,12 @@ def verify_password(username, password):
 @app.route('/mood', methods=['GET', 'POST'])
 @auth.login_required
 def mood():
-	#print(g.user.id, g.user.username)
 	if request.method == 'GET':
 		r = Mood.query.filter_by(uid=g.user.id).all()
-		if not r:
-			return (jsonify({'r': 'No Moods available', 'uid': g.user.username}), 201)
+		if not r:			
+			return ({'r': 'No Moods available', 'username': g.user.username}, 201)
 		else:
-			return (jsonify({'r': r, 'uid': g.user.username}), 201)
+			return ({'r': [{'id': mood.id, 'uid': mood.uid, 'mood': mood.mood, 'created': mood.created, 'streak': mood.streak} for mood in r], 'username': g.user.username}, 201)
 	elif request.method == 'POST':
 		yesterday = date.today() - timedelta(days = 1)
 		r = Mood.query.filter_by(uid=g.user.id).filter(Mood.created == yesterday).first()
@@ -68,7 +68,7 @@ def mood():
 			mood = Mood(mood=request.json.get('mood'), uid=g.user.id, streak=s)
 
 		db.session.add(mood)
-		db.session.commit()
+		db.session.commit() 
 		
 		return ({'success': True, 'streak': mood.streak})
 	
