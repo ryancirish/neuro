@@ -1,5 +1,6 @@
 import json
 from datetime import date, datetime, timedelta
+from scipy import stats
 
 from flask import Flask, abort, request, jsonify, url_for, g
 from flask_sqlalchemy import SQLAlchemy
@@ -57,7 +58,18 @@ def mood():
 		if not r:			
 			return ({'r': 'No Moods available', 'username': g.user.username}, 201)
 		else:
-			return ({'r': [{'id': mood.id, 'uid': mood.uid, 'mood': mood.mood, 'created': mood.created, 'streak': mood.streak} for mood in r], 'username': g.user.username}, 201)
+			e = db.session.query(Mood.uid, db.func.max(Mood.streak)).group_by(Mood.uid).all()
+			for element in e:
+				if element[0] == g.user.id:
+					u_streak = element[1]
+
+			e = [g[0] for g in e]
+			p = stats.percentileofscore(e, u_streak)
+			if p >= 50.0:
+				return ({'r': [{'id': mood.id, 'uid': mood.uid, 'mood': mood.mood, 'created': mood.created, 'streak': mood.streak} for mood in r], 'username': g.user.username, 'percentile': p}, 201)
+			else:
+				return ({'r': [{'id': mood.id, 'uid': mood.uid, 'mood': mood.mood, 'created': mood.created, 'streak': mood.streak} for mood in r], 'username': g.user.username}, 201)
+
 	elif request.method == 'POST':
 		yesterday = date.today() - timedelta(days = 1)
 		r = Mood.query.filter_by(uid=g.user.id).filter(Mood.created == yesterday).first()
