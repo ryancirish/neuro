@@ -26,7 +26,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(200))
 
     def set_password(self, password):
-    	self.password_hash = generate_password_hash(password, method='sha256')
+    	self.password_hash = generate_password_hash(password, method='sha256') #dont store cleartext
 
     def verify_password(self, password):
     	return check_password_hash(self.password_hash, password)
@@ -42,22 +42,25 @@ class Mood(db.Model):
 	created = db.Column(db.Date, default=get_date)
 	streak = db.Column(db.Integer)
 
+#Callback for auth.login_required guard
 @auth.verify_password
 def verify_password(username, password):    
     user = User.query.filter_by(username=username).first()
     if not user or not user.verify_password(password):
         return False
-    g.user = user
+    g.user = user #this allows you to use logged in user downstream
     return True
 
 @app.route('/mood', methods=['GET', 'POST'])
 @auth.login_required
 def mood():
+	#GET
 	if request.method == 'GET':
 		r = Mood.query.filter_by(uid=g.user.id).all()
 		if not r:			
 			return ({'r': 'No Moods available', 'username': g.user.username}, 201)
 		else:
+			#janky percentile rank
 			e = db.session.query(Mood.uid, db.func.max(Mood.streak)).group_by(Mood.uid).all()
 			for element in e:
 				if element[0] == g.user.id:
@@ -69,7 +72,7 @@ def mood():
 				return ({'r': [{'id': mood.id, 'uid': mood.uid, 'mood': mood.mood, 'created': mood.created, 'streak': mood.streak} for mood in r], 'username': g.user.username, 'percentile': p}, 201)
 			else:
 				return ({'r': [{'id': mood.id, 'uid': mood.uid, 'mood': mood.mood, 'created': mood.created, 'streak': mood.streak} for mood in r], 'username': g.user.username}, 201)
-
+	#POST
 	elif request.method == 'POST':
 		yesterday = date.today() - timedelta(days = 1)
 		r = Mood.query.filter_by(uid=g.user.id).filter(Mood.created == yesterday).first()
@@ -100,4 +103,4 @@ def new_user():
     return (jsonify({'username': user.username}), 201)
 
 if __name__ == "__main__":
-		app.run()
+		app.run(host="0.0.0.0", port="1337") #port of your choice make sure it's open
